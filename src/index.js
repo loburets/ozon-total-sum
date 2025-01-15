@@ -1,6 +1,50 @@
+const maxScrolls = 200;
+
 async function run() {
   await loadAllOrders();
-  checkAmount();
+  const ordersAmounts = checkAmount();
+
+  console.log('=============================');
+  console.log(
+    `%c✅ Найдено ${ordersAmounts.length} заказов, список их сумм от самого дорогого к самому дешевому:`,
+    'color: BurlyWood; font-size: 14px;',
+  );
+  console.log(
+    `%c${ordersAmounts.sort((a, b) => b - a).join(', ')}`,
+    'color: BurlyWood; font-size: 12px;',
+  );
+  console.log('=============================');
+  console.log(
+    '%c📦 Итоговая сумма заказов:',
+    'color: ForestGreen; font-size: 16px; font-weight: bold;',
+  );
+  console.log(
+    '%c💰 3407 ₽',
+    'color: DarkOrange; font-size: 20px; font-weight: bold;',
+  );
+  console.log('=============================');
+  console.log(
+    '%c📦 Итоговая сумма возвратов:',
+    'color: ForestGreen; font-size: 16px; font-weight: bold;',
+  );
+  console.log(
+    '%c💰 3407 ₽',
+    'color: DarkOrange; font-size: 20px; font-weight: bold;',
+  );
+  console.log('=============================');
+  console.log(
+    '%c📦 Итоговая сумма выкупа:',
+    'color: ForestGreen; font-size: 16px; font-weight: bold;',
+  );
+  console.log(
+    '%c💰 3407 ₽',
+    'color: DarkOrange; font-size: 20px; font-weight: bold;',
+  );
+  console.log('=============================');
+  console.log(
+    `%c✅ КОНЕЦ`,
+    'color: BurlyWood; font-size: 32px; font-weight: bold;',
+  );
 }
 
 run();
@@ -30,7 +74,19 @@ async function scrollIteration(count) {
   window.scrollBy(0, 1000);
   await waitFor(timeout);
 
-  console.log(`Scrolling ${count} times`, { orders: getCurentOrdersCount() });
+  if (count > maxScrolls) {
+    console.error(
+      `%c⚠️ Слишком большое количество попыток проскроллить страницу, допустимый максимум ${maxScrolls}. Завершение скрипта`,
+      'color: Crimson; font-size: 24px; font-weight: bold;',
+    );
+    throw new Error('Too many scrolls');
+  }
+
+  console.clear();
+  console.log(
+    `%c⏳ Список заказов проскролен ${count} раз, продолжаю скролить, подождите...`,
+    'color: BurlyWood; font-size: 16px;',
+  );
 
   if (getCurentOrdersCount() !== prevOrdersCount) {
     return true;
@@ -52,9 +108,13 @@ async function scrollIteration(count) {
 }
 
 async function loadAllOrders() {
-  for (let i = 0; i < 100; i++) {
-    const shouldContinue = await scrollIteration(i);
+  for (let count = 1; count < maxScrolls; count++) {
+    const shouldContinue = await scrollIteration(count);
     if (!shouldContinue) {
+      console.log(
+        `%c✅ Список заказов проскролен ${count} раз и получен конец списка.`,
+        'color: BurlyWood; font-size: 16px;',
+      );
       break;
     }
   }
@@ -65,7 +125,7 @@ function checkAmount() {
     (el) => el.textContent && el.textContent.trim().includes('Заказ от'),
   );
 
-  let totalSum = 0;
+  let ordersAmounts = [];
 
   receivedElements.forEach((element) => {
     let parent =
@@ -81,13 +141,12 @@ function checkAmount() {
       // Extract the amount, remove non-numeric characters, and parse it as an integer
       const amountText = amountElement.textContent.replace(/\s|₽/g, '');
       const amount = parseInt(amountText, 10);
-      console.log({ amountText, amount });
 
       if (!isNaN(amount)) {
-        totalSum += amount;
+        ordersAmounts.push(amount);
       }
     }
   });
 
-  console.log(`Total sum of received orders: ${totalSum} ₽`);
+  return ordersAmounts;
 }

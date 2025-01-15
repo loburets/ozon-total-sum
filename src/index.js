@@ -1,12 +1,29 @@
 const maxScrolls = 200;
 
+const refundKeyWord = 'Заявка на возврат';
+const refundUrlKeyWord = 'returns';
+const completedRefundKeyWord = 'Деньги отправлены';
+const orderKeyWord = 'Заказ от';
+
 async function run() {
-  await loadAllOrders();
-  const ordersAmounts = checkAmount();
+  const type = window.location.href.includes(refundUrlKeyWord)
+    ? 'refunds'
+    : 'orders';
+
+  await loadAllOrders(type);
+  const ordersAmounts = checkAmount(type);
+
+  printResults(ordersAmounts, type);
+}
+
+run();
+
+function printResults(ordersAmounts, type) {
+  const ordersAmount = ordersAmounts.reduce((acc, amount) => acc + amount, 0);
 
   console.log('=============================');
   console.log(
-    `%c✅ Найдено ${ordersAmounts.length} заказов, список их сумм от самого дорогого к самому дешевому:`,
+    `%c✅ Найдено ${ordersAmounts.length} ${type === 'refunds' ? 'возвратов, где были отправлены деньги' : 'заказов'}, список их сумм от самого дорогого к самому дешевому:`,
     'color: BurlyWood; font-size: 14px;',
   );
   console.log(
@@ -15,43 +32,28 @@ async function run() {
   );
   console.log('=============================');
   console.log(
-    '%c📦 Итоговая сумма заказов:',
+    `%c📦 Итоговая сумма ${type === 'refunds' ? 'возвратов' : 'заказов'}:`,
     'color: ForestGreen; font-size: 16px; font-weight: bold;',
   );
   console.log(
-    '%c💰 3407 ₽',
-    'color: DarkOrange; font-size: 20px; font-weight: bold;',
-  );
-  console.log('=============================');
-  console.log(
-    '%c📦 Итоговая сумма возвратов:',
-    'color: ForestGreen; font-size: 16px; font-weight: bold;',
-  );
-  console.log(
-    '%c💰 3407 ₽',
-    'color: DarkOrange; font-size: 20px; font-weight: bold;',
-  );
-  console.log('=============================');
-  console.log(
-    '%c📦 Итоговая сумма выкупа:',
-    'color: ForestGreen; font-size: 16px; font-weight: bold;',
-  );
-  console.log(
-    '%c💰 3407 ₽',
-    'color: DarkOrange; font-size: 20px; font-weight: bold;',
+    `%c💰 ${ordersAmount} ₽`,
+    'color: DarkOrange; font-size: 32px; font-weight: bold;',
   );
   console.log('=============================');
   console.log(
     `%c✅ КОНЕЦ`,
-    'color: BurlyWood; font-size: 32px; font-weight: bold;',
+    'color: BurlyWood; font-size: 20; font-weight: bold;',
   );
+  console.log('=============================');
 }
 
-run();
-
-function getCurentOrdersCount() {
+function getCurrentOrdersCount(type) {
   return Array.from(document.querySelectorAll('span')).filter(
-    (el) => el.textContent && el.textContent.trim().includes('Заказ от'),
+    (el) =>
+      el.textContent &&
+      el.textContent
+        .trim()
+        .includes(type === 'refunds' ? refundKeyWord : orderKeyWord),
   ).length;
 }
 
@@ -63,11 +65,12 @@ function waitFor(timeout) {
  * Scroll the page and check if the number of orders has changed
  *
  * @param count Number of current iteration
+ * @param type 'orders' or 'refunds'
  * @returns {Promise<boolean>} Is next scroll needed
  */
-async function scrollIteration(count) {
+async function scrollIteration(count, type = 'orders') {
   const timeout = 300; // Adjust timeout if needed
-  let prevOrdersCount = getCurentOrdersCount();
+  let prevOrdersCount = getCurrentOrdersCount(type);
 
   window.scrollBy(0, 1000);
   await waitFor(timeout);
@@ -84,35 +87,35 @@ async function scrollIteration(count) {
 
   console.clear();
   console.log(
-    `%c⏳ Список заказов проскролен ${count} раз, продолжаю скролить, подождите...`,
+    `%c⏳ Список ${type === 'refunds' ? 'возвратов' : 'заказов'} проскролен ${count} раз, продолжаю скролить, подождите...`,
     'color: BurlyWood; font-size: 16px;',
   );
 
-  if (getCurentOrdersCount() !== prevOrdersCount) {
+  if (getCurrentOrdersCount(type) !== prevOrdersCount) {
     return true;
   }
 
   // wait for content to be loaded for the case when it is not loaded yet
   await waitFor(2000);
-  if (getCurentOrdersCount() !== prevOrdersCount) {
+  if (getCurrentOrdersCount(type) !== prevOrdersCount) {
     return true;
   }
 
   // wait for content to be loaded for the case when it is not loaded yet
   await waitFor(2000);
-  if (getCurentOrdersCount() !== prevOrdersCount) {
+  if (getCurrentOrdersCount(type) !== prevOrdersCount) {
     return true;
   }
 
   return false;
 }
 
-async function loadAllOrders() {
+async function loadAllOrders(type = 'orders') {
   for (let count = 1; count < maxScrolls; count++) {
-    const shouldContinue = await scrollIteration(count);
+    const shouldContinue = await scrollIteration(count, type);
     if (!shouldContinue) {
       console.log(
-        `%c✅ Список заказов проскролен ${count} раз и получен конец списка.`,
+        `%c✅ Список ${type === 'refunds' ? 'возвратов' : 'заказов'} проскролен ${count} раз и получен конец списка.`,
         'color: BurlyWood; font-size: 16px;',
       );
       break;
@@ -120,18 +123,34 @@ async function loadAllOrders() {
   }
 }
 
-function checkAmount() {
-  const receivedElements = Array.from(document.querySelectorAll('span')).filter(
-    (el) => el.textContent && el.textContent.trim().includes('Заказ от'),
+function getDirectTextContent(element) {
+  return Array.from(element.childNodes)
+    .filter((node) => node.nodeType === Node.TEXT_NODE)
+    .map((node) => node.textContent.trim())
+    .join('');
+}
+
+function checkAmount(type = 'orders') {
+  const orderSpanElements = Array.from(
+    document.querySelectorAll(type === 'refunds' ? 'div' : 'span'),
+  ).filter((el) =>
+    getDirectTextContent(el)
+      .trim()
+      .includes(type === 'refunds' ? completedRefundKeyWord : orderKeyWord),
   );
 
   let ordersAmounts = [];
 
-  receivedElements.forEach((element) => {
+  orderSpanElements.forEach((element) => {
     let parent =
-      element.parentElement.parentElement.parentElement.parentElement;
+      type === 'refunds'
+        ? element.parentElement.parentElement.parentElement.parentElement
+            .parentElement.parentElement
+        : element.parentElement.parentElement.parentElement.parentElement;
 
-    const amountElement = Array.from(parent.querySelectorAll('span')).find(
+    const amountElement = Array.from(
+      parent.querySelectorAll(type === 'refunds' ? 'div' : 'span'),
+    ).find(
       (span) =>
         span.textContent &&
         span.textContent.trim().match(/^.*\d*[\s\u00A0]*\d+[\s\u00A0]*₽$/),
